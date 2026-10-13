@@ -87,7 +87,7 @@ name may be replaced.
 Generate checklists for one team and a specific range of seasons:
 
 ```bash
-python card_checklists.py --team-id NYA --start 1970 --end 2025
+python card_checklists.py --team-id NYY --start 1970 --end 2025
 ```
 
 Generate all teams for a specific range of seasons:
@@ -104,7 +104,7 @@ python card_checklists.py --team-id PIT --start 1970 --end 2025 --output output
 
 Available options:
 
-- `--team-id`: Lahman MLB team ID, such as `NYA` or `PIT`. Defaults to all MLB teams.
+- `--team-id`: Lahman MLB team ID, such as `NYY` or `PIT`. Defaults to all MLB teams.
 - `--start`: Earliest season to include. Defaults to each team's first available season.
 - `--end`: Latest season to include. Defaults to each team's latest available season.
 - `--output`: Destination directory. Defaults to `checklists`.
