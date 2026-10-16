@@ -153,7 +153,10 @@ def prepare_data(
         if col not in app.columns:
             app[col] = 0
         app[col] = pd.to_numeric(app[col], errors="coerce").fillna(0)
-    app["non_pitcher_games"] = app[POSITION_COLUMNS].sum(axis=1)
+    non_pitcher_position_columns = [
+        column for column in POSITION_COLUMNS if column not in {"G_ph", "G_pr"}
+    ]
+    app["non_pitcher_games"] = app[non_pitcher_position_columns].sum(axis=1)
     if "G_p" in app.columns:
         app["G_p"] = pd.to_numeric(app["G_p"], errors="coerce").fillna(0)
     else:
@@ -163,18 +166,7 @@ def prepare_data(
     hitters = bat.merge(app[["yearID", "playerID", "non_pitcher_games", "Position"]],
                         on=["yearID", "playerID"], how="left")
     hitters["non_pitcher_games"] = hitters["non_pitcher_games"].fillna(0)
-    pitcher_records = pitching[
-        (pitching["teamID"].isin(team_ids)) &
-        (pitching["yearID"].between(start, end))
-    ][["yearID", "playerID"]].drop_duplicates()
-    if team_seasons is not None:
-        pitcher_records = pitcher_records[pitcher_records["yearID"].isin(team_seasons)]
-    pitcher_records["is_pitcher"] = True
-    hitters = hitters.merge(pitcher_records, on=["yearID", "playerID"], how="left")
-    position_eligible = (
-        (hitters["non_pitcher_games"] >= MIN_POSITION_PLAYER_GAMES) &
-        hitters["is_pitcher"].isna()
-    )
+    position_eligible = hitters["non_pitcher_games"] >= MIN_POSITION_PLAYER_GAMES
     hitters = hitters[position_eligible].copy()
     hitters = hitters.sort_values(
         ["yearID", "G", "PA", "playerID"], ascending=[True, False, False, True]
@@ -235,9 +227,10 @@ def prepare_data(
     pit = pit.rename(columns={"yearID": "Season"})
 
     hitter_columns = ["Season", "section", "rank", "Player", "qualifying_stat",
-                      "Position", "Common stats", "G", "AB", "H", "HR", "RBI", "AVG", "OPS", "playerID"]
+                      "Position", "Common stats", "G", "AB", "H", "HR", "RBI", "AVG", "OPS",
+                      "doubles", "triples", "BB", "HBP", "SF", "playerID"]
     pitcher_columns = ["Season", "section", "rank", "Player", "qualifying_stat",
-                       "Common stats", "G", "GS", "IP", "W", "L", "ERA", "SO", "SV", "playerID"]
+                       "Common stats", "G", "GS", "IP", "IPOuts", "W", "L", "ER", "ERA", "SO", "SV", "playerID"]
     hitters_out = hitters[hitter_columns].copy()
     pit_out = pit[pitcher_columns].copy()
     all_rows = pd.concat([hitters_out, pit_out], ignore_index=True, sort=False)
@@ -274,6 +267,63 @@ def prepare_data(
     all_rows["Order ID"] = ""
     all_rows["Notes / preference exception"] = ""
     return all_rows, teams, managers, people
+
+
+def aggregate_decade_rows(data, years):
+    """Aggregate the displayed season leaders into one alternate season sheet."""
+    decade = data[data["Season"].isin(years)].copy()
+    aggregate_rows = []
+
+    hitters = decade[decade["section"] == "Position player"]
+    if not hitters.empty:
+        grouped = hitters.groupby("playerID", dropna=False)
+        for player_id, group in grouped:
+            totals = {column: group[column].fillna(0).sum() for column in
+                      ["G", "AB", "H", "HR", "RBI", "doubles", "triples", "BB", "HBP", "SF"]}
+            at_bats = totals["AB"]
+            plate_appearances = at_bats + totals["BB"] + totals["HBP"] + totals["SF"]
+            on_base = totals["H"] + totals["BB"] + totals["HBP"]
+            slugging = (totals["H"] + 2 * totals["doubles"] + 3 * totals["triples"] +
+                        3 * totals["HR"]) / at_bats if at_bats else 0
+            aggregate_rows.append({
+                "section": "Position player", "Player": group.iloc[0]["Player"],
+                "playerID": player_id, "G": totals["G"], "AB": at_bats,
+                "H": totals["H"], "HR": totals["HR"], "RBI": totals["RBI"],
+                "AVG": totals["H"] / at_bats if at_bats else 0,
+                "OPS": on_base / plate_appearances + slugging if plate_appearances else 0,
+                "Position": ", ".join(dict.fromkeys(
+                    position.strip()
+                    for positions in group["Position"]
+                    for position in str(positions).split(",")
+                    if position.strip()
+                )),
+            })
+        aggregate_rows[-len(hitters["playerID"].unique()):] = sorted(
+            aggregate_rows[-len(hitters["playerID"].unique()):],
+            key=lambda row: (-row["G"], -row["AB"], str(row["playerID"])),
+        )
+        for rank, row in enumerate(aggregate_rows[:18], start=1):
+            row["rank"] = rank
+        aggregate_rows = aggregate_rows[:18]
+
+    pitchers = decade[decade["section"] == "Pitcher"]
+    pitcher_rows = []
+    if not pitchers.empty:
+        for player_id, group in pitchers.groupby("playerID", dropna=False):
+            totals = {column: group[column].fillna(0).sum() for column in
+                      ["G", "GS", "IPOuts", "W", "L", "ER", "SO", "SV"]}
+            pitcher_rows.append({
+                "section": "Pitcher", "Player": group.iloc[0]["Player"],
+                "playerID": player_id, **totals,
+                "IP": totals["IPOuts"] / 3,
+                "ERA": totals["ER"] * 27 / totals["IPOuts"] if totals["IPOuts"] else 0,
+            })
+        pitcher_rows.sort(key=lambda row: (-row["IPOuts"], -row["SO"], str(row["playerID"])))
+        for rank, row in enumerate(pitcher_rows[:9], start=1):
+            row["rank"] = rank
+        aggregate_rows.extend(pitcher_rows[:9])
+
+    return pd.DataFrame(aggregate_rows)
 
 def format_innings(outs):
     outs = int(outs)
@@ -365,7 +415,7 @@ def create_pdf(
         result = row.get(column, default)
         return default if pd.isna(result) else result
 
-    seasons = [season for season in range(start, end + 1) if season in team_seasons]
+    seasons = [season for season in range(end, start - 1, -1) if season in team_seasons]
     for season_index, season in enumerate(seasons):
         season_rows = data[data["Season"] == season]
         team_rows = teams[
@@ -543,6 +593,72 @@ def create_pdf(
             story.append(Spacer(1, 10))
         if season_index < len(seasons) - 1:
             story.append(PageBreak())
+
+    decade_years = [season for season in seasons if 1970 <= season <= 1979]
+    decade_data = aggregate_decade_rows(data, decade_years)
+    if not decade_data.empty:
+        story.append(PageBreak())
+        story.append(Paragraph("1970-79 Season", styles["Title"]))
+        story.append(Spacer(1, 3))
+        story.append(Paragraph(team_name.upper(), styles["TeamTitle"]))
+        story.append(Spacer(1, 10))
+        story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#333333"), spaceBefore=0, spaceAfter=20))
+
+        table_specs = [
+            ("POSITION PLAYERS", "Position player", range(1, 19),
+             ["", "SLOT", "PLAYER", "POSITION", "G", "AB", "H", "HR", "RBI", "AVG", "OPS"],
+             ["G", "AB", "H", "HR", "RBI", "AVG", "OPS"]),
+            ("PITCHERS", "Pitcher", range(1, 10),
+             ["", "SLOT", "PLAYER", "IP", "G", "GS", "W", "L", "ERA", "SO", "SV"],
+             ["IP", "G", "GS", "W", "L", "ERA", "SO", "SV"]),
+        ]
+        for title, section, ranks, headers, stat_columns in table_specs:
+            story.append(Paragraph(title, styles["Heading2"]))
+            subset = decade_data[decade_data["section"] == section]
+            by_rank = {int(row["rank"]): row for _, row in subset.iterrows()}
+            table_data = [headers]
+            for rank in ranks:
+                row = by_rank.get(rank)
+                pocket_rank = rank if section == "Pitcher" else (rank if rank <= 9 else rank - 9)
+                page_num = 3 if section == "Pitcher" else (1 if rank <= 9 else 2)
+                row_letter = "ABC"[(pocket_rank - 1) // 3]
+                col_num = (pocket_rank - 1) % 3 + 1
+                slot = f"{page_num}-{row_letter}{col_num}"
+                if row is None:
+                    values = [empty_checkbox(), slot, "________________", "—"] + ["—"] * len(stat_columns)
+                else:
+                    values = [empty_checkbox(), slot, str(row["Player"])]
+                    if section == "Position player":
+                        values.append(str(row.get("Position", "")))
+                    for column in stat_columns:
+                        item = value(row, column, "")
+                        if column in {"G", "AB", "H", "HR", "RBI", "GS", "W", "L", "SO", "SV"} and item != "":
+                            item = str(int(item))
+                        elif column == "IP" and item != "":
+                            item = format_innings(int(round(float(row["IPOuts"])))) .replace(" IP", "")
+                        elif column in {"AVG", "OPS", "ERA"} and item != "":
+                            decimals = 2 if column == "ERA" else 3
+                            item = f"{float(item):.{decimals}f}"
+                            if column == "AVG":
+                                item = item.replace("0.", ".")
+                        values.append(str(item))
+                table_data.append(values)
+            base_widths = ([0.3, 0.43, 1.55] +
+                           ([0.9] if section == "Position player" else []) +
+                           [0.38] * len(stat_columns))
+            widths = [base_widths[0]] + [width + 0.08 for width in base_widths[1:]]
+            tbl = Table(table_data, colWidths=[width * inch for width in widths],
+                        rowHeights=[0.25 * inch] + [0.22 * inch] * len(list(ranks)),
+                        repeatRows=1, hAlign="LEFT")
+            styled_table = style_table(tbl, font_size=8.2, padding=5)
+            styled_table.setStyle(TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (0, 1), (0, -1), "CENTER"),
+                ("RIGHTPADDING", (0, 0), (0, -1), 5),
+                ("RIGHTPADDING", (1, 0), (-1, -1), 8),
+            ]))
+            story.append(styled_table)
+            story.append(Spacer(1, 10))
     doc.build(story)
 
 def main():

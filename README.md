@@ -33,7 +33,9 @@ summary:
 
 -   Each season has 27 player slots: 18 position players and 9 pitchers.
 -   Position players with at least one non-pitcher appearance are ranked by
-    games played, with plate appearances (PA) used to break ties.
+    games played, with plate appearances (PA) used to break ties. A player
+    with a token pitching appearance is still treated as a position player
+    when Lahman records them at another position.
 -   Pitchers are ranked by innings pitched, with strikeouts (SO) used to
     break ties.
 -   Use regular-season statistics accumulated with the team being
@@ -111,6 +113,8 @@ Available options:
 
 The generated PDFs contain 27 checklist slots per season: 18 position players
 and 9 pitchers. Position-player slots include players with a recorded
-non-pitcher appearance who did not pitch for that team that season; players
-are ranked using the rules described in
+non-pitcher appearance; players are ranked using the rules described in
 [`Instructions.pdf`](Instructions.pdf). Postseason statistics are not included.
+Season sheets are ordered from the latest included season back to the earliest.
+When the requested range includes 1970 through 1979, the PDF also ends with an
+alternate `1970-79 Season` sheet containing aggregated numbers for that period.
