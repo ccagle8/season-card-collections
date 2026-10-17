@@ -8,7 +8,7 @@ Outputs:
 
 Data source: Lahman Baseball Database, accessed through pylahman.
 By default, one PDF is generated for every MLB team in the downloaded
-database from 1970 through the latest available season for that team.
+database from 1960 through the latest available season for that team.
 Newer teams begin with their first available season. Historical non-MLB
 leagues in Lahman are excluded.
 
@@ -415,7 +415,8 @@ def create_pdf(
         result = row.get(column, default)
         return default if pd.isna(result) else result
 
-    seasons = [season for season in range(end, start - 1, -1) if season in team_seasons]
+    included_seasons = [season for season in range(end, start - 1, -1) if season in team_seasons]
+    seasons = [season for season in included_seasons if not 1960 <= season <= 1969]
     for season_index, season in enumerate(seasons):
         season_rows = data[data["Season"] == season]
         team_rows = teams[
@@ -594,11 +595,17 @@ def create_pdf(
         if season_index < len(seasons) - 1:
             story.append(PageBreak())
 
-    decade_years = [season for season in seasons if 1970 <= season <= 1979]
-    decade_data = aggregate_decade_rows(data, decade_years)
-    if not decade_data.empty:
+    decade_specs = [
+        ("1970-79 Season", range(1970, 1980)),
+        ("1960-69 Season", range(1960, 1970)),
+    ]
+    for decade_title, decade_range in decade_specs:
+        decade_years = [season for season in included_seasons if season in decade_range]
+        decade_data = aggregate_decade_rows(data, decade_years)
+        if decade_data.empty:
+            continue
         story.append(PageBreak())
-        story.append(Paragraph("1970-79 Season", styles["Title"]))
+        story.append(Paragraph(decade_title, styles["Title"]))
         story.append(Spacer(1, 3))
         story.append(Paragraph(team_name.upper(), styles["TeamTitle"]))
         story.append(Spacer(1, 10))
@@ -667,8 +674,8 @@ def main():
     )
     parser.add_argument("--team-id", default=None,
                         help="Only generate this MLB Lahman teamID; default is all MLB teams")
-    parser.add_argument("--start", type=int, default=1970,
-                        help="Earliest season to include (default: 1970)")
+    parser.add_argument("--start", type=int, default=1960,
+                        help="Earliest season to include (default: 1960)")
     parser.add_argument("--end", type=int, default=None,
                         help="Latest season to include; default is each team's latest available season")
     parser.add_argument("--output", default="checklists",

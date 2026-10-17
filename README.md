@@ -107,7 +107,7 @@ python card_checklists.py --team-id PIT --start 1970 --end 2025 --output output
 Available options:
 
 - `--team-id`: Lahman MLB team ID, such as `NYY` or `PIT`. Defaults to all MLB teams.
-- `--start`: Earliest season to include. Defaults to each team's first available season.
+- `--start`: Earliest season to include. Defaults to 1960, or each team's first available season if later.
 - `--end`: Latest season to include. Defaults to each team's latest available season.
 - `--output`: Destination directory. Defaults to `checklists`.
 
@@ -116,5 +116,7 @@ and 9 pitchers. Position-player slots include players with a recorded
 non-pitcher appearance; players are ranked using the rules described in
 [`Instructions.pdf`](Instructions.pdf). Postseason statistics are not included.
 Season sheets are ordered from the latest included season back to the earliest.
-When the requested range includes 1970 through 1979, the PDF also ends with an
-alternate `1970-79 Season` sheet containing aggregated numbers for that period.
+When the requested range includes either decade, the PDF ends with alternate
+`1970-79 Season` and `1960-69 Season` sheets containing aggregated numbers for
+those periods, in that order. Individual 1960-1969 season sheets are omitted;
+those years appear only in the `1960-69 Season` aggregate.
