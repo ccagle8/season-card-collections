@@ -31,14 +31,13 @@ I then printed my team's checklist and use full protector sheet sleeves to use a
 The complete rules are in **[Instructions.pdf](Instructions.pdf)**. In
 summary:
 
--   Each season has 27 player slots: 18 position players and 9 pitchers.
--   Position players with at least one non-pitcher appearance are ranked by
     games played, with plate appearances (PA) used to break ties. A player
     with a token pitching appearance is still treated as a position player
     when Lahman records them at another position.
--   Pitchers are ranked by innings pitched, with strikeouts (SO) used to
     break ties.
--   Use regular-season statistics accumulated with the team being
+Team headers use the historical name recorded for that season, so name changes
+such as Cleveland Indians to Cleveland Guardians are reflected at the correct
+point in the PDF.
     documented; exclude postseason statistics.
 -   Cards from any manufacturer, set, type, or release year are
     acceptable. Certain card characteristics are preferences, not
@@ -107,7 +106,7 @@ python card_checklists.py --team-id PIT --start 1970 --end 2025 --output output
 Available options:
 
 - `--team-id`: Lahman MLB team ID, such as `NYY` or `PIT`. Defaults to all MLB teams.
-- `--start`: Earliest season to include. Defaults to 1960, or each team's first available season if later.
+- `--start`: Earliest season to include. Defaults to each team's first available season.
 - `--end`: Latest season to include. Defaults to each team's latest available season.
 - `--output`: Destination directory. Defaults to `checklists`.
 
@@ -115,8 +114,3 @@ The generated PDFs contain 27 checklist slots per season: 18 position players
 and 9 pitchers. Position-player slots include players with a recorded
 non-pitcher appearance; players are ranked using the rules described in
 [`Instructions.pdf`](Instructions.pdf). Postseason statistics are not included.
-Season sheets are ordered from the latest included season back to the earliest.
-When the requested range includes either decade, the PDF ends with alternate
-`1970-79 Season` and `1960-69 Season` sheets containing aggregated numbers for
-those periods, in that order. Individual 1960-1969 season sheets are omitted;
-those years appear only in the `1960-69 Season` aggregate.

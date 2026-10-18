@@ -366,6 +366,14 @@ def safe_filename(team_name):
     return f"{filename or 'team'}.pdf"
 
 
+def historical_team_name(team_rows, fallback):
+    names = team_rows["name"].dropna().astype(str).str.strip()
+    names = names[names != ""]
+    if names.empty:
+        return fallback
+    return names.value_counts().index[0]
+
+
 def create_pdf(
     data, path, start, end, team_ids, team_name, team_seasons,
     teams, managers, people
@@ -424,6 +432,7 @@ def create_pdf(
             (teams["teamID"].isin(team_ids))
         ]
         team_info = team_rows.iloc[0] if not team_rows.empty else None
+        season_team_name = historical_team_name(team_rows, team_name)
         if team_info is not None:
             wins = int(value(team_info, "W", 0))
             losses = int(value(team_info, "L", 0))
@@ -478,7 +487,7 @@ def create_pdf(
 
         story.append(Paragraph(f"{season} Season", styles["Title"]))
         story.append(Spacer(1, 3))
-        story.append(Paragraph(team_name.upper(), styles["TeamTitle"]))
+        story.append(Paragraph(season_team_name.upper(), styles["TeamTitle"]))
         story.append(Spacer(1, 10))
         story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#333333"), spaceBefore=0, spaceAfter=20))
         stat_items = [
@@ -607,7 +616,12 @@ def create_pdf(
         story.append(PageBreak())
         story.append(Paragraph(decade_title, styles["Title"]))
         story.append(Spacer(1, 3))
-        story.append(Paragraph(team_name.upper(), styles["TeamTitle"]))
+        decade_team_rows = teams[
+            (teams["yearID"].isin(decade_years)) &
+            (teams["teamID"].isin(team_ids))
+        ]
+        decade_team_name = historical_team_name(decade_team_rows, team_name)
+        story.append(Paragraph(decade_team_name.upper(), styles["TeamTitle"]))
         story.append(Spacer(1, 10))
         story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#333333"), spaceBefore=0, spaceAfter=20))
 
